@@ -1,0 +1,9 @@
+{
+  "name": "laya-guard",
+  "version": "0.1.0",
+  "description": "Proof of concept: deterministic rules + Laya (local classifier) review every tool call, aimed at auto mode.",
+  "author": {
+    "name": "srmateos"
+  },
+  "license": "MIT"
+}

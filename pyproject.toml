@@ -1,0 +1,9 @@
+[project]
+name = "laya-guard"
+version = "0.1.0"
+description = "Claude Code plugin (proof of concept) that reviews tool calls with rules and the Laya classifier"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "laya>=0.3.21",
+]
