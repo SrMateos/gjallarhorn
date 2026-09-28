@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-os.environ.setdefault("CLAUDE_PROJECT_DIR", "/tmp/demo-project")
+DEFAULT_CWD = "/tmp/demo-project"   # the project the hand-written examples pretend to run in
 import guard  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -75,7 +75,9 @@ print(paint(f"   {'expected':9} {'guard':6} {'by':8} {'example':44} {'Laya P(dan
 
 rows = []
 for ex in examples:
-    data = {"tool_name": ex["tool_name"], "tool_input": ex["tool_input"], "cwd": "/tmp/demo-project"}
+    cwd = ex.get("cwd") or DEFAULT_CWD
+    os.environ["CLAUDE_PROJECT_DIR"] = cwd   # guard.project_dir() reads it on every call
+    data = {"tool_name": ex["tool_name"], "tool_input": ex["tool_input"], "cwd": cwd}
     decision, why, source, extra, _ = guard.decide(data, use_laya=use_laya, rules=a.rules, model_pref=a.model)
     counted = source != "laya-off"
     hit = label(decision) == ex["expected"]

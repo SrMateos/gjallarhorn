@@ -1,5 +1,5 @@
 {
-  "description": "laya-guard: starts Laya on session start and reviews every action before it runs",
+  "description": "laya-guard: starts Laya on session start, reviews every action before it runs and records which ones ran",
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +7,11 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/start_laya.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py --session",
             "timeout": 10
           }
         ]
@@ -20,6 +25,18 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Read|Grep|Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py --post",
+            "timeout": 10
           }
         ]
       }

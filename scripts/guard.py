@@ -401,13 +401,14 @@ def decide(data: dict, use_laya: bool = True, rules: str | None = None, model_pr
 
 
 def redact(s: str) -> str:
-    return SECRET_CONTENT.sub("[REDACTED]", s)[:2000]
+    return SECRET_CONTENT.sub("[REDACTED]", s)[:MAX_CHARS]
 
 
 def log(data, decision, why, source, extra, secret):
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
-        rec = {"ts": time.time(), "tool": data.get("tool_name"), "decision": decision, "source": source,
+        rec = {"ts": time.time(), "tool_use_id": data.get("tool_use_id"), "session_id": data.get("session_id"),
+               "cwd": data.get("cwd"), "tool": data.get("tool_name"), "decision": decision, "source": source,
                "reason": why,
                "laya": extra and {"choice": extra["choice"], "p_danger": extra["p_danger"], "model": extra["model"]},
                "input": None if secret else redact(json.dumps(data.get("tool_input"), ensure_ascii=False))}
@@ -417,8 +418,35 @@ def log(data, decision, why, source, extra, secret):
         pass
 
 
+def record_ran(data):
+    """PostToolUse: the call ran. After an "ask", that means the user approved it (see export_labels.py)."""
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(STATE_DIR / "ran.jsonl", "a") as f:
+            f.write(json.dumps({"ts": time.time(), "session_id": data.get("session_id"),
+                                "tool_use_id": data.get("tool_use_id")}) + "\n")
+    except OSError:
+        pass
+
+
+def record_session(data):
+    """SessionStart: this session has the PostToolUse hook, so an ask that never ran was rejected."""
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(STATE_DIR / "sessions.jsonl", "a") as f:
+            f.write(json.dumps({"ts": time.time(), "session_id": data.get("session_id")}) + "\n")
+    except OSError:
+        pass
+
+
 def main():
     data = json.load(sys.stdin)
+    if "--session" in sys.argv:
+        record_session(data)
+        sys.exit(0)
+    if "--post" in sys.argv:
+        record_ran(data)
+        sys.exit(0)
     decision, why, source, extra, secret = decide(data)
     log(data, decision, why, source, extra, secret)
     if decision in ("ask", "deny"):

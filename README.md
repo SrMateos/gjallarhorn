@@ -86,12 +86,6 @@ Set these environment variables before starting Claude Code, for example
 | `shadow` | Rules and allowlist, but Laya also scores every action and its verdict is logged | Measuring Laya on real traffic without risk |
 | `off` | Laya alone, no rules and no allowlist | Experiments only |
 
-## Decision log
-
-Every decision is appended to `~/.cache/laya-guard/decisions.jsonl` with the tool, the decision, who made
-it, the reason and Laya's verdict (choice, P(danger), checkpoint). Credentials in the input are redacted,
-and the input is left out entirely when the action touches a secrets file.
-
 ## Evaluate
 
 `scripts/eval.py` runs the labelled actions in `examples/examples.jsonl` through the same `decide()`
@@ -118,14 +112,93 @@ Laya's P(danger) with the checkpoint that answered. The summary reports:
   threshold separates them perfectly.
 
 Each line of `examples.jsonl` is a JSON object with `expected` (`routine` or `dangerous`), `note`,
-`tool_name` and `tool_input`.
+`tool_name`, `tool_input` and, optionally, `cwd` (the project directory, `/tmp/demo-project` by default).
+
+## Learning from your answers
+
+Laya is weak zero-shot: its own documentation calls it "a fast base to specialise, not a zero-shot
+decision engine". The plugin records how you answer each time it asks, so you can build a labelled
+dataset from real use and fine-tune Laya on it.
+
+### How your answer is recorded
+
+Claude Code does not pass your answer to hooks, so the plugin infers it from whether the call ran:
+
+```
+SessionStart  ->  sessions.jsonl    this session has the hooks below
+PreToolUse    ->  decisions.jsonl   the guard's decision ("ask", "pass", "deny") and the call's ID
+   ... Claude Code asks you: approve or reject ...
+PostToolUse   ->  ran.jsonl         the call's ID, only if it actually ran
+```
+
+For every call the guard asked about:
+
+| In `ran.jsonl`? | Your answer | Label |
+|---|---|---|
+| Yes | approved | `routine` |
+| No | rejected (or you interrupted the session) | `dangerous` |
+
+All files live in `~/.cache/laya-guard/`. Credentials in `decisions.jsonl` are redacted, and the input is
+left out entirely when the action touches a secrets file, so those actions never become labels.
+
+### Export the labels
+
+```bash
+python3 ~/laya-guard/scripts/export_labels.py
+```
+
+It writes `~/.cache/laya-guard/labelled.jsonl`, one line per answered question, in the same format as
+`examples/examples.jsonl`:
+
+```json
+{"expected": "routine", "note": "approved: git status && git log", "tool_name": "Bash",
+ "tool_input": {"command": "git status && git log"}, "cwd": "/home/you/project",
+ "asked_by": "laya", "p_danger": 0.49}
+```
+
+`expected` is your answer, `asked_by` says whether the rules or Laya asked, and `p_danger` is Laya's
+score at the time. Questions from the last 2 minutes are skipped in case you have not answered yet
+(`--min-age` changes it). The file contains your real commands: do not commit it.
+
+Check Laya against your answers:
+
+```bash
+uv run python scripts/eval.py --file ~/.cache/laya-guard/labelled.jsonl --rules off
+```
+
+### Fine-tune Laya
+
+From least to most effort:
+
+1. **Tune the threshold.** Run the eval above and pick the `LAYA_GUARD_THRESHOLD` that best separates
+   your approvals from your rejections. Works with a few dozen labels.
+2. **Train a small head on the frozen model.** [stuntd](https://github.com/bladedevoff/stuntd), linked
+   from Laya's documentation, trains a decision head on your labelled rows and needs far less data and
+   compute than a full fine-tune.
+3. **Full fine-tune.** Laya's
+   [fine-tuning notebook](https://github.com/NandhaKishorM/laya/blob/main/notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb)
+   runs the whole loop on Kaggle's free 2x T4 GPUs: build the dataset, train, fit calibration
+   temperatures and evaluate. For reference, 4 epochs over ~30k questions take about 4 to 5 hours.
+
+This plugin does not yet convert `labelled.jsonl` to the notebook's dataset format or load a custom
+checkpoint in `laya-serve`; see the [Laya model card](https://huggingface.co/convaiinnovations/laya)
+for both. Before training:
+
+- **Collect enough data.** A few test sessions are not enough; you need hundreds of labels from real use.
+- **Balance the classes.** In normal use you approve most questions. The hand-written
+  `examples/examples.jsonl` can add dangerous cases.
+- **Review the labels.** You may approve out of fatigue, or reject a harmless command because of what
+  Claude was about to do next.
+- **Evaluate on held-out data.** Never measure on the examples you trained on; for instance, train on
+  `labelled.jsonl` and evaluate on `examples/examples.jsonl`.
 
 ## Project layout
 
 ```
 .claude-plugin/plugin.json   plugin manifest
-hooks/hooks.json             SessionStart and PreToolUse hooks
+hooks/hooks.json             SessionStart, PreToolUse and PostToolUse hooks
 scripts/guard.py             the hook: rules, allowlist and Laya client (stdlib only)
+scripts/export_labels.py     turns your answers to the guard's questions into labelled examples
 scripts/start_laya.sh        starts laya-serve in the background
 scripts/stop_laya.sh         stops it
 scripts/eval.py              evaluation over labelled examples
@@ -134,8 +207,8 @@ examples/examples.jsonl      labelled example actions
 
 ## Limitations
 
-- Laya is used zero-shot and its scores overlap for routine and dangerous actions. Fine-tuning on
-  labelled entries from `decisions.jsonl` is the natural next step.
+- Laya is used zero-shot and its scores overlap for routine and dangerous actions, especially on long
+  compound commands. See [Learning from your answers](#learning-from-your-answers).
 - The prompt and threshold were tuned on the same 31 examples used to evaluate them.
 - The multilingual checkpoint, used for long actions, is noticeably weaker than the English one.
 - Rules match text patterns and can be bypassed by a determined agent.
