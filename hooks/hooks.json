@@ -6,12 +6,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/start_laya.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/start_laya.sh\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py --session",
+            "command": "P=python3; case $(command -v python3) in ''|*WindowsApps*) P=python;; esac; $P \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.py\" --session",
             "timeout": 10
           }
         ]
@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py",
+            "command": "P=python3; case $(command -v python3) in ''|*WindowsApps*) P=python;; esac; $P \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.py\"",
             "timeout": 30
           }
         ]
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/guard.py --post",
+            "command": "P=python3; case $(command -v python3) in ''|*WindowsApps*) P=python;; esac; $P \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.py\" --post",
             "timeout": 10
           }
         ]
