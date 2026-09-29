@@ -1,4 +1,4 @@
-# laya-guard
+# Gjallarhorn
 
 > **Proof of concept.** Not a security boundary. Do not rely on it to protect data you care about.
 
