@@ -19,6 +19,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import socket
 import subprocess
 import sys
@@ -303,14 +304,14 @@ def ensure_server(timeout: float = WAIT_S) -> bool:
         return True
     pidfile = STATE_DIR / "laya.pid"
     starting = False
-    if pidfile.exists():
+    if pidfile.exists() and os.name != "nt":
         try:
             os.kill(int(pidfile.read_text().strip()), 0)
             starting = True
         except (OSError, ValueError):
             pass
     if not starting:   # SessionStart did not launch it: launch it ourselves
-        subprocess.Popen([str(PLUGIN_ROOT / "scripts" / "start_laya.sh")],
+        subprocess.Popen([shutil.which("bash") or "bash", str(PLUGIN_ROOT / "scripts" / "start_laya.sh")],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

@@ -23,7 +23,7 @@ fi
 # setsid + nohup: the server survives Claude Code exiting
 LAYA_HOST=127.0.0.1 LAYA_PORT="$PORT" LAYA_API_KEY="$(cat "$KEYFILE")" \
 LAYA_MAX_TOKEN_BUDGET=8192 \
-  setsid nohup uvx --from "laya[serve]" laya-serve >>"$LOG" 2>&1 < /dev/null &
+  $(command -v setsid) nohup uvx --from "laya[serve]" laya-serve >>"$LOG" 2>&1 < /dev/null &
 echo $! > "$PIDFILE"
 
 # Warm-up: once the port opens, send one request per checkpoint so both get loaded
